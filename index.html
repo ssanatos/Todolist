@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>우선순위 정렬 할일 목록</title>
+<style>
+:root{
+  --bg:#eef2f5; --panel:#ffffff; --ink:#14212b; --sub:#5b6b78; --line:#d5dde3;
+  --imp:#c2410c; --urg:#b91c1c; --quick:#0f766e; --accent:#1d4ed8; --hi:#fde68a;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#10171d; --panel:#192229; --ink:#e8eef2; --sub:#93a3af; --line:#2c3943;
+  --imp:#fb923c; --urg:#f87171; --quick:#2dd4bf; --accent:#7aa2ff; --hi:#5a4a10;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard","Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;line-height:1.5}
+.wrap{max-width:780px;margin:0 auto;padding:28px 16px 60px}
+h1{font-size:1.7rem;margin:0 0 4px;letter-spacing:-.02em}
+.lead{color:var(--sub);margin:0 0 22px;font-size:.95rem}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+input[type=text],input[type=number],input[type=date],select{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.grp{margin:16px 0 0;padding-top:14px;border-top:1px solid var(--line)}
+.grp>h3{margin:0 0 10px;font-size:.95rem}
+.grp>h3 small{color:var(--sub);font-weight:400;margin-left:6px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.field b{display:block;font-size:.88rem;margin-bottom:6px}
+.field .rub{display:block;color:var(--sub);font-size:.78rem;margin-top:5px;min-height:2.4em}
+.field .auto{color:var(--accent)}
+.seg{display:flex;gap:4px}
+.seg button{flex:1;padding:8px 0;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;font:inherit;cursor:pointer;min-height:38px}
+.seg button[aria-pressed=true]{color:#fff;border-color:transparent;background:var(--accent)}
+.seg.off{opacity:.45;pointer-events:none}
+.f-urg .seg button[aria-pressed=true]{background:var(--urg)}
+.f-quick .seg button[aria-pressed=true]{background:var(--quick)}
+.f-imp .seg button[aria-pressed=true]{background:var(--imp)}
+.add{width:100%;margin-top:18px;padding:12px;border:0;border-radius:8px;background:var(--accent);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+@media(prefers-color-scheme:dark){.add{color:#0b1220}}
+details summary{cursor:pointer;font-weight:600;font-size:.92rem}
+.wts{display:grid;gap:8px;margin-top:12px}
+.wts h4{margin:8px 0 0;font-size:.82rem;color:var(--sub)}
+.wts label{display:grid;grid-template-columns:120px 1fr 24px;align-items:center;gap:10px;font-size:.88rem}
+.goalrow{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-top:10px}
+.goals{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.goals li{border:1px solid var(--line);border-radius:99px;padding:3px 6px 3px 12px;font-size:.84rem;display:flex;gap:6px;align-items:center}
+.goals li button{border:0;background:none;color:var(--sub);cursor:pointer;font-size:1rem;line-height:1}
+.mini{padding:9px 14px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;font:inherit;cursor:pointer}
+.top{display:flex;justify-content:space-between;align-items:baseline;margin:6px 0 10px}
+.top h2{font-size:1.1rem;margin:0}
+.tools button{border:0;background:none;color:var(--accent);font:inherit;font-size:.85rem;cursor:pointer;padding:4px 6px}
+ol{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+li.task{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+li.task.first{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
+.rank{font-size:1.5rem;font-weight:800;text-align:center;color:var(--sub)}
+li.task.first .rank{color:var(--accent)}
+.name{font-weight:600;word-break:break-word}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;font-size:.76rem}
+.chips span{padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--sub)}
+.chips .score{background:var(--hi);color:var(--ink);border-color:transparent;font-weight:700}
+.act{display:flex;gap:6px}
+.act button{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;padding:6px 10px;font:inherit;font-size:.8rem;cursor:pointer;min-height:34px}
+li.done .name{text-decoration:line-through;color:var(--sub)}
+li.done{opacity:.6}
+.empty{text-align:center;color:var(--sub);padding:26px 10px;border:1px dashed var(--line);border-radius:10px}
+@media(max-width:560px){li.task{grid-template-columns:34px 1fr}.act{grid-column:1/-1;justify-content:flex-end}.goalrow{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>우선순위 정렬 할일 목록</h1>
+  <p class="lead">중요도는 영향력·목표 연관성·금전 가치로, 긴급도는 마감일로 평가해 지금 할 순서를 정렬합니다.</p>
+
+  <div class="panel">
+    <details>
+      <summary>내 목표 등록 (목표 연관성 자동 제안에 사용)</summary>
+      <div class="goalrow">
+        <input type="text" id="g-name" placeholder="목표 (예: 블로그 수익화)" maxlength="40">
+        <input type="text" id="g-kw" placeholder="관련 키워드, 쉼표로 구분 (예: 블로그,글,광고)" maxlength="80">
+        <button class="mini" id="g-add" type="button">추가</button>
+      </div>
+      <ul class="goals" id="goals"></ul>
+    </details>
+  </div>
+
+  <div class="panel">
+    <input type="text" id="title" placeholder="할일을 입력하세요 (예: 세금 신고서 제출)" maxlength="100" autocomplete="off">
+
+    <div class="grp">
+      <h3>중요도 평가<small>영향력(범위와 지속의 평균)·목표 연관성·금전 가치를 합쳐 계산합니다</small></h3>
+      <div class="row">
+        <div class="field f-imp"><b>영향 범위 (공간)</b><div class="seg" data-key="sp"></div><span class="rub" id="rub-sp"></span></div>
+        <div class="field f-imp"><b>영향 지속 (시간)</b><div class="seg" data-key="tm"></div><span class="rub" id="rub-tm"></span></div>
+        <div class="field f-imp"><b>목표 연관성</b><div class="seg" data-key="g"></div>
+          <select id="goal" style="margin-top:6px"></select><span class="rub" id="rub-g"></span></div>
+        <div class="field f-imp"><b>금전 가치 (원)</b><input type="number" id="money" min="0" step="1000" placeholder="얻거나 잃을 금액, 비워도 됨"><span class="rub" id="rub-m">비우면 이 기준은 계산에서 빠집니다.</span></div>
+      </div>
+    </div>
+
+    <div class="grp">
+      <h3>긴급도와 처리 속도</h3>
+      <div class="row">
+        <div class="field"><b>마감일</b><input type="date" id="dl"><span class="rub" id="rub-dl">정하면 긴급도가 자동 계산됩니다.</span></div>
+        <div class="field f-urg"><b>긴급도</b><div class="seg" data-key="u" id="seg-u"></div><span class="rub" id="rub-u"></span></div>
+        <div class="field f-quick"><b>빨리 끝낼 수 있나요?</b><div class="seg" data-key="q"></div><span class="rub" id="rub-q"></span></div>
+      </div>
+    </div>
+    <button class="add" id="add">할일 추가</button>
+  </div>
+
+  <div class="panel">
+    <details>
+      <summary>기준별 반영 비율 조절</summary>
+      <div class="wts" id="wts"></div>
+    </details>
+  </div>
+
+  <div class="top">
+    <h2 id="count">정렬 결과</h2>
+    <div class="tools"><button id="copy">목록 복사</button><button id="clear">완료 항목 지우기</button></div>
+  </div>
+  <ol id="list"></ol>
+</div>
+
+<script>
+const KEY = 'todo-priority-v2';
+const DEF_W = { imp: 3, urg: 3, q: 2, a: 3, g: 3, m: 2 };
+let state = { tasks: [], goals: [], w: { ...DEF_W } };
+try {
+  const s = JSON.parse(localStorage.getItem(KEY));
+  if (s && s.tasks) state = { tasks: s.tasks, goals: s.goals || [], w: { ...DEF_W, ...s.w } };
+  else {
+    const o = JSON.parse(localStorage.getItem('todo-priority-v1'));
+    if (o && o.tasks) state.tasks = o.tasks.map(t => ({ id: t.id, title: t.title, a: t.imp, g: t.imp, money: null, dl: '', u: t.urg, q: t.quick, done: t.done }));
+  }
+} catch (e) {}
+state.tasks.forEach(t => { if (t.sp === undefined) t.sp = t.tm = t.a || 3; });
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+const $ = id => document.getElementById(id);
+
+const RUB = {
+  sp: ['나 혼자', '가족·가까운 사람 몇 명', '팀·동네·소규모 모임', '회사·지역·커뮤니티 전체', '사회·국가·전 세계'],
+  tm: ['오늘 하루로 끝남', '일주일 정도 이어짐', '몇 달 이어짐', '몇 년 이어짐', '평생 이어지거나 되돌릴 수 없음'],
+  g: ['목표와 무관', '목표와 간접적으로 관련', '목표에 도움이 됨', '목표 달성에 직접 기여', '목표 달성의 핵심·필수 단계'],
+  u: ['한 달 넘게 여유', '한 달 안', '일주일 안', '1~2일 안', '오늘이거나 이미 지남'],
+  q: ['하루 이상 걸림', '반나절', '1~2시간', '30분 안팎', '5분 안에 끝남']
+};
+const sel = { sp: 3, tm: 3, g: 3, u: 3, q: 3 };
+const touched = {};
+const HI_KW = ['마감', '제출', '세금', '납부', '계약', '시험', '면접', '신고', '발표', '결제', '수익', '출시'];
+const LO_KW = ['정리', '구경', '나중에', '심심', '청소'];
+
+function setSeg(k, n) {
+  sel[k] = n;
+  const seg = document.querySelector('.seg[data-key=' + k + ']');
+  seg.querySelectorAll('button').forEach((x, i) => x.setAttribute('aria-pressed', i + 1 === n));
+  $('rub-' + k).textContent = RUB[k][n - 1];
+}
+function buildSegs() {
+  document.querySelectorAll('.seg').forEach(seg => {
+    const k = seg.dataset.key;
+    for (let n = 1; n <= 5; n++) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = n;
+      b.onclick = () => { touched[k] = true; setSeg(k, n); };
+      seg.appendChild(b);
+    }
+    setSeg(k, sel[k]);
+  });
+}
+
+function daysLeft(dl) {
+  if (!dl) return null;
+  const [y, m, d] = dl.split('-').map(Number);
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  return Math.round((new Date(y, m - 1, d) - t) / 86400000);
+}
+const urgOf = t => {
+  const d = daysLeft(t.dl);
+  if (d === null) return t.u;
+  return d <= 0 ? 5 : d <= 2 ? 4 : d <= 7 ? 3 : d <= 30 ? 2 : 1;
+};
+const moneyScore = v => !v ? null : v < 1e4 ? 1 : v < 1e5 ? 2 : v < 1e6 ? 3 : v < 1e7 ? 4 : 5;
+function impOf(t) {
+  const w = state.w, m = moneyScore(t.money);
+  const parts = [[(t.sp + t.tm) / 2, w.a], [t.g, w.g]];
+  if (m) parts.push([m, w.m]);
+  const sw = parts.reduce((s, p) => s + p[1], 0);
+  return sw ? parts.reduce((s, p) => s + p[0] * p[1], 0) / sw : 1;
+}
+function score(t) {
+  const w = state.w, sum = w.imp + w.urg + w.q || 1;
+  return Math.round((impOf(t) * w.imp + urgOf(t) * w.urg + t.q * w.q) / (5 * sum) * 100);
+}
+const order = (a, b) => score(b) - score(a) || urgOf(b) - urgOf(a) || impOf(b) - impOf(a);
+
+function refreshGoals() {
+  const s = $('goal');
+  s.innerHTML = '<option value="">연결할 목표 없음</option>';
+  state.goals.forEach((g, i) => { const o = document.createElement('option'); o.value = i; o.textContent = g.name; s.appendChild(o); });
+  const ul = $('goals'); ul.innerHTML = '';
+  state.goals.forEach((g, i) => {
+    const li = document.createElement('li');
+    const sp = document.createElement('span'); sp.textContent = g.name;
+    const x = document.createElement('button'); x.textContent = '×'; x.setAttribute('aria-label', g.name + ' 삭제');
+    x.onclick = () => { state.goals.splice(i, 1); save(); refreshGoals(); };
+    li.append(sp, x); ul.appendChild(li);
+  });
+}
+$('g-add').onclick = () => {
+  const name = $('g-name').value.trim(); if (!name) { $('g-name').focus(); return; }
+  const kw = $('g-kw').value.split(',').map(s => s.trim()).filter(Boolean);
+  state.goals.push({ name, kw: kw.length ? kw : [name] });
+  $('g-name').value = ''; $('g-kw').value = ''; save(); refreshGoals();
+};
+
+function suggest() {
+  const t = $('title').value;
+  if (!t) return;
+  const v = HI_KW.some(k => t.includes(k)) ? 4 : LO_KW.some(k => t.includes(k)) ? 2 : 3;
+  ['sp', 'tm'].forEach(k => { if (!touched[k]) setSeg(k, v); });
+  const gi = state.goals.findIndex(g => g.kw.some(k => t.includes(k)));
+  if (gi >= 0 && !touched.goal) { $('goal').value = gi; if (!touched.g) setSeg('g', 4); }
+}
+$('title').addEventListener('input', suggest);
+$('goal').onchange = () => { touched.goal = true; if (!touched.g) setSeg('g', $('goal').value === '' ? 2 : 4); };
+$('dl').onchange = () => {
+  const d = daysLeft($('dl').value);
+  $('seg-u').classList.toggle('off', d !== null);
+  $('rub-dl').innerHTML = d === null ? '정하면 긴급도가 자동 계산됩니다.' : '<span class="auto">긴급도 ' + (d <= 0 ? 5 : d <= 2 ? 4 : d <= 7 ? 3 : d <= 30 ? 2 : 1) + '점으로 자동 계산됨</span>';
+};
+$('money').oninput = () => {
+  const m = moneyScore(+$('money').value);
+  $('rub-m').textContent = m ? '금전 가치 ' + m + '점 (1만·10만·100만·1000만 원 기준)' : '비우면 이 기준은 계산에서 빠집니다.';
+};
+
+function addTask() {
+  const title = $('title').value.trim();
+  if (!title) { $('title').focus(); return; }
+  state.tasks.push({ id: Date.now() + Math.random(), title, sp: sel.sp, tm: sel.tm, g: sel.g, money: +$('money').value || null, dl: $('dl').value, u: sel.u, q: sel.q, done: false });
+  $('title').value = ''; $('money').value = ''; $('dl').value = ''; $('goal').value = '';
+  Object.keys(touched).forEach(k => delete touched[k]);
+  ['sp', 'tm', 'g', 'u', 'q'].forEach(k => setSeg(k, 3));
+  $('dl').onchange(); $('money').oninput();
+  $('title').focus(); save(); render();
+}
+
+function render() {
+  const list = $('list'); list.innerHTML = '';
+  const active = state.tasks.filter(t => !t.done).sort(order);
+  const done = state.tasks.filter(t => t.done);
+  $('count').textContent = active.length ? '지금 할 순서 (' + active.length + '개)' : '정렬 결과';
+  if (!state.tasks.length) { list.innerHTML = '<div class="empty">아직 할일이 없어요. 위에 첫 할일을 추가해 보세요.</div>'; return; }
+  [...active, ...done].forEach(t => {
+    const li = document.createElement('li');
+    const idx = active.indexOf(t);
+    li.className = 'task' + (t.done ? ' done' : '') + (idx === 0 ? ' first' : '');
+    const d = daysLeft(t.dl), m = moneyScore(t.money);
+    const dtxt = d === null ? '' : d === 0 ? ' (D-day)' : d > 0 ? ' (D-' + d + ')' : ' (' + (-d) + '일 지남)';
+    li.innerHTML = '<div class="rank">' + (t.done ? '✓' : idx + 1) + '</div><div><div class="name"></div><div class="chips">' +
+      '<span class="score">' + score(t) + '점</span><span>중요도 ' + impOf(t).toFixed(1) + ' = 영향 ' + ((t.sp + t.tm) / 2).toFixed(1) + '(범위 ' + t.sp + '·지속 ' + t.tm + ') · 목표 ' + t.g + (m ? ' · 금전 ' + m : '') + '</span>' +
+      '<span>긴급 ' + urgOf(t) + dtxt + '</span><span>속도 ' + t.q + '</span></div></div>' +
+      '<div class="act"><button data-a="done">' + (t.done ? '되돌리기' : '완료') + '</button><button data-a="del">삭제</button></div>';
+    li.querySelector('.name').textContent = t.title;
+    li.querySelector('[data-a=done]').onclick = () => { t.done = !t.done; save(); render(); };
+    li.querySelector('[data-a=del]').onclick = () => { state.tasks = state.tasks.filter(x => x !== t); save(); render(); };
+    list.appendChild(li);
+  });
+}
+
+const WL = [['h', '전체 비율'], ['imp', '중요도'], ['urg', '긴급도'], ['q', '빠른 처리'], ['h', '중요도 안의 비율'], ['a', '영향력'], ['g', '목표 연관성'], ['m', '금전 가치']];
+WL.forEach(([k, label]) => {
+  if (k === 'h') { const h = document.createElement('h4'); h.textContent = label; $('wts').appendChild(h); return; }
+  const l = document.createElement('label');
+  l.innerHTML = label + '<input type="range" min="0" max="5"><output></output>';
+  const r = l.querySelector('input'), o = l.querySelector('output');
+  r.value = state.w[k]; o.textContent = r.value;
+  r.oninput = () => { state.w[k] = +r.value; o.textContent = r.value; save(); render(); };
+  $('wts').appendChild(l);
+});
+
+$('add').onclick = addTask;
+$('title').addEventListener('keydown', e => { if (e.key === 'Enter') addTask(); });
+$('clear').onclick = () => { state.tasks = state.tasks.filter(t => !t.done); save(); render(); };
+$('copy').onclick = () => {
+  const txt = state.tasks.filter(t => !t.done).sort(order).map((t, i) => (i + 1) + '. ' + t.title + ' (' + score(t) + '점)').join('\n');
+  if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => { $('copy').textContent = '복사됨'; setTimeout(() => $('copy').textContent = '목록 복사', 1200); });
+};
+
+buildSegs(); refreshGoals(); render();
+</script>
+</body>
+</html>
