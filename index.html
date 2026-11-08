@@ -64,6 +64,22 @@ li.done .name{text-decoration:line-through;color:var(--sub)}
 li.done{opacity:.6}
 .empty{text-align:center;color:var(--sub);padding:26px 10px;border:1px dashed var(--line);border-radius:10px}
 @media(max-width:560px){li.task{grid-template-columns:34px 1fr}.act{grid-column:1/-1;justify-content:flex-end}.goalrow{grid-template-columns:1fr}}
+[hidden]{display:none!important}
+input[type=color]{width:40px;height:36px;padding:2px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.thumb{max-width:96px;max-height:72px;border-radius:6px;border:1px solid var(--line);cursor:zoom-in;display:block}
+#pv{display:inline-flex;gap:8px;align-items:center}
+.extra{margin-top:8px}
+.tinfo{margin-top:4px}
+.hint{font-size:.78rem;color:var(--accent);margin-top:6px}
+.stat{background:var(--hi);color:var(--ink);border-radius:8px;padding:10px 12px;font-size:.85rem;margin-bottom:10px}
+.mini[aria-pressed=true]{background:var(--accent);color:#fff;border-color:transparent}
+.wts label{grid-template-columns:120px 1fr 34px}
+#modal,#viewer{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px;z-index:10}
+.mbox{background:var(--panel);border-radius:12px;padding:12px;max-width:680px;width:100%}
+#cv{width:100%;height:auto;aspect-ratio:8/5;touch-action:none;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:crosshair;display:block}
+.pbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
+.pbar input[type=range]{width:110px}
+#vimg{max-width:100%;max-height:100%;border-radius:8px;background:#fff}
 </style>
 </head>
 <body>
@@ -84,7 +100,19 @@ li.done{opacity:.6}
   </div>
 
   <div class="panel">
+    <details>
+      <summary>가산점 키워드 (생산성을 빠르게 높이는 일)</summary>
+      <div class="goalrow" style="grid-template-columns:1fr 1fr">
+        <input type="text" id="b-kw" placeholder="쉼표로 구분 (예: 자동화,매크로)" maxlength="80">
+        <label style="display:flex;align-items:center;gap:8px;font-size:.88rem">가산점 <input type="range" id="b-bonus" min="0" max="3" step="0.5"><output id="b-out"></output></label>
+      </div>
+      <p style="color:var(--sub);font-size:.8rem;margin:8px 0 0">제목에 이 단어가 들어간 할일은 중요도에 가산점이 더해집니다. 중요도는 최대 5점입니다.</p>
+    </details>
+  </div>
+
+  <div class="panel">
     <input type="text" id="title" placeholder="할일을 입력하세요 (예: 세금 신고서 제출)" maxlength="100" autocomplete="off">
+    <div class="hint" id="bhint" hidden></div>
 
     <div class="grp">
       <h3>중요도 평가<small>영향력(범위와 지속의 평균)·목표 연관성·금전 가치를 합쳐 계산합니다</small></h3>
@@ -102,7 +130,16 @@ li.done{opacity:.6}
       <div class="row">
         <div class="field"><b>마감일</b><input type="date" id="dl"><span class="rub" id="rub-dl">정하면 긴급도가 자동 계산됩니다.</span></div>
         <div class="field f-urg"><b>긴급도</b><div class="seg" data-key="u" id="seg-u"></div><span class="rub" id="rub-u"></span></div>
-        <div class="field f-quick"><b>빨리 끝낼 수 있나요?</b><div class="seg" data-key="q"></div><span class="rub" id="rub-q"></span></div>
+        <div class="field"><b>예상 소요시간</b><div style="display:flex;gap:6px"><input type="number" id="est" min="1" step="1" placeholder="예: 90"><select id="est-u" style="width:84px"><option value="1">분</option><option value="60">시간</option></select></div><span class="rub" id="rub-est">입력하면 여유율이 곱해지고, 속도 점수가 자동 계산됩니다.</span></div>
+        <div class="field f-quick"><b>빨리 끝낼 수 있나요?</b><div class="seg" data-key="q" id="seg-q"></div><span class="rub" id="rub-q"></span></div>
+      </div>
+    </div>
+    <div class="grp">
+      <h3>참고 그림<small>사진을 첨부하거나 직접 그릴 수 있습니다</small></h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <label class="mini" style="cursor:pointer">이미지 첨부<input type="file" id="file" accept="image/*" hidden></label>
+        <button class="mini" id="draw" type="button">직접 그리기</button>
+        <span id="pv"></span>
       </div>
     </div>
     <button class="add" id="add">할일 추가</button>
@@ -119,9 +156,24 @@ li.done{opacity:.6}
     <h2 id="count">정렬 결과</h2>
     <div class="tools"><button id="copy">목록 복사</button><button id="clear">완료 항목 지우기</button></div>
   </div>
+  <div class="stat" id="stat" hidden></div>
   <ol id="list"></ol>
 </div>
 
+<div id="modal" hidden>
+  <div class="mbox">
+    <div class="pbar">
+      <input type="color" id="pc" value="#14212b" aria-label="색상">
+      <input type="range" id="ps" min="1" max="24" value="4" aria-label="굵기">
+      <button class="mini" id="pe" type="button" aria-pressed="false">지우개</button>
+      <button class="mini" id="pu" type="button">되돌리기</button>
+      <button class="mini" id="pcl" type="button">모두 지우기</button>
+    </div>
+    <canvas id="cv" width="640" height="400"></canvas>
+    <div class="pbar"><button class="mini" id="psave" type="button">저장</button><button class="mini" id="pcancel" type="button">취소</button></div>
+  </div>
+</div>
+<div id="viewer" hidden><img id="vimg" alt="참고 그림"></div>
 <script>
 const KEY = 'todo-priority-v2';
 const DEF_W = { imp: 3, urg: 3, q: 2, a: 3, g: 3, m: 2 };
@@ -135,7 +187,10 @@ try {
   }
 } catch (e) {}
 state.tasks.forEach(t => { if (t.sp === undefined) t.sp = t.tm = t.a || 3; });
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+state.boost = state.boost || { kws: ['자동화'], bonus: 1.5 };
+state.buf = state.buf || 1.3;
+let warned = false;
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { if (!warned) { warned = true; alert('저장 공간이 부족합니다. 그림이 있는 할일을 정리해 주세요.'); } } };
 const $ = id => document.getElementById(id);
 
 const RUB = {
@@ -181,7 +236,8 @@ const urgOf = t => {
   return d <= 0 ? 5 : d <= 2 ? 4 : d <= 7 ? 3 : d <= 30 ? 2 : 1;
 };
 const moneyScore = v => !v ? null : v < 1e4 ? 1 : v < 1e5 ? 2 : v < 1e6 ? 3 : v < 1e7 ? 4 : 5;
-function impOf(t) {
+function impOf(t) { return Math.min(5, baseImp(t) + boostOf(t)); }
+function baseImp(t) {
   const w = state.w, m = moneyScore(t.money);
   const parts = [[(t.sp + t.tm) / 2, w.a], [t.g, w.g]];
   if (m) parts.push([m, w.m]);
@@ -190,7 +246,7 @@ function impOf(t) {
 }
 function score(t) {
   const w = state.w, sum = w.imp + w.urg + w.q || 1;
-  return Math.round((impOf(t) * w.imp + urgOf(t) * w.urg + t.q * w.q) / (5 * sum) * 100);
+  return Math.round((impOf(t) * w.imp + urgOf(t) * w.urg + qOf(t) * w.q) / (5 * sum) * 100);
 }
 const order = (a, b) => score(b) - score(a) || urgOf(b) - urgOf(a) || impOf(b) - impOf(a);
 
@@ -216,6 +272,9 @@ $('g-add').onclick = () => {
 
 function suggest() {
   const t = $('title').value;
+  const bk = state.boost.kws.find(k => k && t.includes(k));
+  $('bhint').hidden = !bk;
+  if (bk) $('bhint').textContent = '"' + bk + '" 키워드 → 중요도 +' + state.boost.bonus + ' 가산';
   if (!t) return;
   const v = HI_KW.some(k => t.includes(k)) ? 4 : LO_KW.some(k => t.includes(k)) ? 2 : 3;
   ['sp', 'tm'].forEach(k => { if (!touched[k]) setSeg(k, v); });
@@ -237,11 +296,11 @@ $('money').oninput = () => {
 function addTask() {
   const title = $('title').value.trim();
   if (!title) { $('title').focus(); return; }
-  state.tasks.push({ id: Date.now() + Math.random(), title, sp: sel.sp, tm: sel.tm, g: sel.g, money: +$('money').value || null, dl: $('dl').value, u: sel.u, q: sel.q, done: false });
-  $('title').value = ''; $('money').value = ''; $('dl').value = ''; $('goal').value = '';
+  state.tasks.push({ id: Date.now() + Math.random(), title, sp: sel.sp, tm: sel.tm, g: sel.g, money: +$('money').value || null, dl: $('dl').value, u: sel.u, q: sel.q, est: (+$('est').value || 0) * +$('est-u').value || null, img: curImg, actual: 0, run: null, done: false });
+  $('title').value = ''; $('money').value = ''; $('dl').value = ''; $('goal').value = ''; $('est').value = ''; setImg(null); $('bhint').hidden = true;
   Object.keys(touched).forEach(k => delete touched[k]);
   ['sp', 'tm', 'g', 'u', 'q'].forEach(k => setSeg(k, 3));
-  $('dl').onchange(); $('money').oninput();
+  $('dl').onchange(); $('money').oninput(); $('est').oninput();
   $('title').focus(); save(); render();
 }
 
@@ -249,6 +308,7 @@ function render() {
   const list = $('list'); list.innerHTML = '';
   const active = state.tasks.filter(t => !t.done).sort(order);
   const done = state.tasks.filter(t => t.done);
+  renderStat();
   $('count').textContent = active.length ? '지금 할 순서 (' + active.length + '개)' : '정렬 결과';
   if (!state.tasks.length) { list.innerHTML = '<div class="empty">아직 할일이 없어요. 위에 첫 할일을 추가해 보세요.</div>'; return; }
   [...active, ...done].forEach(t => {
@@ -258,11 +318,18 @@ function render() {
     const d = daysLeft(t.dl), m = moneyScore(t.money);
     const dtxt = d === null ? '' : d === 0 ? ' (D-day)' : d > 0 ? ' (D-' + d + ')' : ' (' + (-d) + '일 지남)';
     li.innerHTML = '<div class="rank">' + (t.done ? '✓' : idx + 1) + '</div><div><div class="name"></div><div class="chips">' +
-      '<span class="score">' + score(t) + '점</span><span>중요도 ' + impOf(t).toFixed(1) + ' = 영향 ' + ((t.sp + t.tm) / 2).toFixed(1) + '(범위 ' + t.sp + '·지속 ' + t.tm + ') · 목표 ' + t.g + (m ? ' · 금전 ' + m : '') + '</span>' +
-      '<span>긴급 ' + urgOf(t) + dtxt + '</span><span>속도 ' + t.q + '</span></div></div>' +
-      '<div class="act"><button data-a="done">' + (t.done ? '되돌리기' : '완료') + '</button><button data-a="del">삭제</button></div>';
+      '<span class="score">' + score(t) + '점</span><span>중요도 ' + impOf(t).toFixed(1) + ' = 영향 ' + ((t.sp + t.tm) / 2).toFixed(1) + '(범위 ' + t.sp + '·지속 ' + t.tm + ') · 목표 ' + t.g + (m ? ' · 금전 ' + m : '') + (boostOf(t) ? ' · 키워드 가산 +' + boostOf(t) : '') + '</span>' +
+      '<span>긴급 ' + urgOf(t) + dtxt + '</span><span>속도 ' + qOf(t) + '</span></div><div class="chips tinfo"></div><div class="extra"></div></div>' +
+      '<div class="act">' + (t.done ? '<button data-a="actual">실제시간</button>' : '<button data-a="timer">' + (t.run ? '정지' : '시작') + '</button>') + '<button data-a="done">' + (t.done ? '되돌리기' : '완료') + '</button><button data-a="del">삭제</button></div>';
     li.querySelector('.name').textContent = t.title;
-    li.querySelector('[data-a=done]').onclick = () => { t.done = !t.done; save(); render(); };
+    const ti = li.querySelector('.tinfo'); ti.innerHTML = timeHtml(t); if (!ti.innerHTML) ti.remove();
+    const ex = li.querySelector('.extra');
+    if (t.img) { const im = document.createElement('img'); im.src = t.img; im.className = 'thumb'; im.alt = '참고 그림'; im.onclick = () => showViewer(t.img); ex.appendChild(im); } else ex.remove();
+    const tb = li.querySelector('[data-a=timer]');
+    if (tb) tb.onclick = () => { if (t.run) { t.actual = elapsed(t); t.run = null; } else t.run = Date.now(); save(); render(); };
+    const ab = li.querySelector('[data-a=actual]');
+    if (ab) ab.onclick = () => { const v = parseFloat(prompt('실제로 걸린 시간을 분 단위로 입력하세요', t.actual ? Math.round(t.actual / 60) : '')); if (v >= 0) { t.actual = v * 60; save(); render(); } };
+    li.querySelector('[data-a=done]').onclick = () => { if (!t.done && t.run) { t.actual = elapsed(t); t.run = null; } t.done = !t.done; save(); render(); };
     li.querySelector('[data-a=del]').onclick = () => { state.tasks = state.tasks.filter(x => x !== t); save(); render(); };
     list.appendChild(li);
   });
@@ -286,6 +353,121 @@ $('copy').onclick = () => {
   const txt = state.tasks.filter(t => !t.done).sort(order).map((t, i) => (i + 1) + '. ' + t.title + ' (' + score(t) + '점)').join('\n');
   if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => { $('copy').textContent = '복사됨'; setTimeout(() => $('copy').textContent = '목록 복사', 1200); });
 };
+
+let curImg = null;
+function fmt(min) { min = Math.round(min); if (min < 60) return min + '분'; const h = Math.floor(min / 60), m = min % 60; return h + '시간' + (m ? ' ' + m + '분' : ''); }
+function fmtS(s) { return Math.floor(s / 60) + '분 ' + ('0' + Math.floor(s % 60)).slice(-2) + '초'; }
+function elapsed(t) { return (t.actual || 0) + (t.run ? (Date.now() - t.run) / 1000 : 0); }
+function qFromMin(m) { return m <= 10 ? 5 : m <= 45 ? 4 : m <= 180 ? 3 : m <= 480 ? 2 : 1; }
+function qOf(t) { return t.est ? qFromMin(t.est * state.buf) : t.q; }
+function boostOf(t) { return state.boost.kws.some(k => k && t.title.includes(k)) ? state.boost.bonus : 0; }
+function timeHtml(t) {
+  let h = '';
+  if (t.est) h += '<span>예상 ' + fmt(t.est) + ' × ' + state.buf.toFixed(1) + ' = ' + fmt(t.est * state.buf) + '</span>';
+  const e = elapsed(t);
+  if (t.run || e > 0) h += '<span class="tm" data-id="' + t.id + '">실제 ' + fmtS(e) + '</span>';
+  if (t.est && e > 0 && !t.run) h += '<span>예상 대비 ' + (e / 60 / t.est).toFixed(1) + '배</span>';
+  return h;
+}
+function syncBuf() { $('buf').value = state.buf; $('buf-o').textContent = state.buf.toFixed(1); }
+function renderStat() {
+  const el = $('stat');
+  const fin = state.tasks.filter(t => t.done && t.est && t.actual > 0);
+  if (!fin.length) { el.hidden = true; return; }
+  const r = fin.reduce((s, t) => s + t.actual / 60, 0) / fin.reduce((s, t) => s + t.est, 0);
+  el.hidden = false; el.innerHTML = '';
+  el.append('완료한 ' + fin.length + '건 기준으로 실제 시간은 예상의 평균 ' + r.toFixed(2) + '배였습니다. 현재 여유율은 ' + state.buf.toFixed(1) + '배예요. ');
+  const b = document.createElement('button'); b.className = 'mini'; b.type = 'button';
+  b.textContent = '여유율 ' + Math.min(3, Math.max(1, +r.toFixed(1))).toFixed(1) + ' 적용';
+  b.onclick = () => { state.buf = Math.min(3, Math.max(1, +r.toFixed(1))); syncBuf(); save(); render(); };
+  el.appendChild(b);
+}
+
+/* 가산점 키워드 */
+$('b-kw').value = state.boost.kws.join(',');
+$('b-bonus').value = state.boost.bonus; $('b-out').textContent = '+' + state.boost.bonus;
+$('b-kw').oninput = () => { state.boost.kws = $('b-kw').value.split(',').map(x => x.trim()).filter(Boolean); save(); render(); suggest(); };
+$('b-bonus').oninput = () => { state.boost.bonus = +$('b-bonus').value; $('b-out').textContent = '+' + state.boost.bonus; save(); render(); suggest(); };
+
+/* 여유율 슬라이더 */
+const bh = document.createElement('h4'); bh.textContent = '소요시간 예측'; $('wts').appendChild(bh);
+const bl = document.createElement('label'); bl.innerHTML = '여유율 (×)<input type="range" id="buf" min="1" max="3" step="0.1"><output id="buf-o"></output>';
+$('wts').appendChild(bl);
+$('buf').oninput = () => { state.buf = +$('buf').value; syncBuf(); save(); render(); $('est').oninput(); };
+syncBuf();
+
+/* 예상 소요시간 */
+$('est').oninput = () => {
+  const v = (+$('est').value || 0) * +$('est-u').value;
+  $('seg-q').classList.toggle('off', !!v);
+  if (v) {
+    const b = v * state.buf;
+    $('rub-est').innerHTML = '<span class="auto">여유율 ×' + state.buf.toFixed(1) + ' 적용 → ' + fmt(b) + ', 속도 ' + qFromMin(b) + '점으로 자동 계산됨</span>';
+    setSeg('q', qFromMin(b));
+  } else $('rub-est').textContent = '입력하면 여유율이 곱해지고, 속도 점수가 자동 계산됩니다.';
+};
+$('est-u').onchange = $('est').oninput;
+
+/* 참고 그림: 첨부 */
+function setImg(d) {
+  curImg = d; const pv = $('pv'); pv.innerHTML = '';
+  if (!d) return;
+  const im = document.createElement('img'); im.src = d; im.className = 'thumb'; im.alt = '첨부 미리보기';
+  const x = document.createElement('button'); x.className = 'mini'; x.type = 'button'; x.textContent = '제거'; x.onclick = () => setImg(null);
+  pv.append(im, x);
+}
+function shrink(img, max) {
+  const k = Math.min(1, max / Math.max(img.width, img.height));
+  const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.72);
+}
+$('file').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const url = URL.createObjectURL(f), im = new Image();
+  im.onload = () => { setImg(shrink(im, 720)); URL.revokeObjectURL(url); };
+  im.onerror = () => { URL.revokeObjectURL(url); alert('이미지를 열 수 없습니다.'); };
+  im.src = url; e.target.value = '';
+};
+
+/* 참고 그림: 그리기 */
+const cv = $('cv'), cx = cv.getContext('2d');
+let drawing = false, erase = false, hist = [];
+const clearCv = () => { cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); };
+const snap = () => { hist.push(cx.getImageData(0, 0, cv.width, cv.height)); if (hist.length > 20) hist.shift(); };
+const pos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
+cv.onpointerdown = e => {
+  e.preventDefault(); cv.setPointerCapture(e.pointerId); snap(); drawing = true;
+  const [x, y] = pos(e);
+  cx.beginPath(); cx.moveTo(x, y); cx.lineCap = 'round'; cx.lineJoin = 'round';
+  cx.lineWidth = +$('ps').value; cx.strokeStyle = erase ? '#fff' : $('pc').value;
+  cx.lineTo(x + 0.01, y); cx.stroke();
+};
+cv.onpointermove = e => { if (!drawing) return; const [x, y] = pos(e); cx.lineTo(x, y); cx.stroke(); };
+cv.onpointerup = cv.onpointercancel = () => { drawing = false; };
+$('pe').onclick = () => { erase = !erase; $('pe').setAttribute('aria-pressed', erase); };
+$('pu').onclick = () => { const h = hist.pop(); if (h) cx.putImageData(h, 0, 0); };
+$('pcl').onclick = () => { snap(); clearCv(); };
+$('draw').onclick = () => {
+  clearCv(); hist = []; erase = false; $('pe').setAttribute('aria-pressed', 'false'); $('modal').hidden = false;
+  if (curImg) {
+    const im = new Image();
+    im.onload = () => { const k = Math.min(cv.width / im.width, cv.height / im.height), w = im.width * k, h = im.height * k; cx.drawImage(im, (cv.width - w) / 2, (cv.height - h) / 2, w, h); };
+    im.src = curImg;
+  }
+};
+$('psave').onclick = () => { setImg(cv.toDataURL('image/jpeg', 0.8)); $('modal').hidden = true; };
+$('pcancel').onclick = () => { $('modal').hidden = true; };
+function showViewer(src) { $('vimg').src = src; $('viewer').hidden = false; }
+$('viewer').onclick = () => { $('viewer').hidden = true; };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('modal').hidden = true; $('viewer').hidden = true; } });
+
+setInterval(() => {
+  document.querySelectorAll('.tm').forEach(el => {
+    const t = state.tasks.find(x => String(x.id) === el.dataset.id);
+    if (t && t.run) el.textContent = '실제 ' + fmtS(elapsed(t));
+  });
+}, 1000);
 
 buildSegs(); refreshGoals(); render();
 </script>
