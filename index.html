@@ -80,6 +80,28 @@ input[type=color]{width:40px;height:36px;padding:2px;border:1px solid var(--line
 .pbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
 .pbar input[type=range]{width:110px}
 #vimg{max-width:100%;max-height:100%;border-radius:8px;background:#fff}
+.task.blocked{opacity:.75;border-style:dashed}
+.blk{color:var(--sub);font-size:.8rem;margin-top:4px}
+.subs{margin-top:6px;display:grid;gap:2px}
+.subs label{display:flex;gap:6px;align-items:center;font-size:.84rem;cursor:pointer}
+.sedit{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:4px;font-size:.84rem}
+.sedit li{display:flex;justify-content:space-between;gap:8px;border:1px solid var(--line);border-radius:6px;padding:3px 8px}
+.sedit button{border:0;background:none;color:var(--sub);cursor:pointer;font-size:1rem}
+.rule{display:grid;grid-template-columns:120px 1fr 70px auto;gap:6px;margin-top:8px}
+.matrix{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.quad{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:110px}
+.quad h3{margin:0 0 6px;font-size:.95rem}
+.quad h3 small{display:block;color:var(--sub);font-weight:400;font-size:.74rem}
+.qi{font-size:.85rem;padding:3px 0;border-top:1px solid var(--line)}
+.none,.matrix .note{color:var(--sub);font-size:.8rem;margin:0}
+.matrix .note{grid-column:1/-1}
+.top{flex-wrap:wrap;gap:6px}
+.tools button[aria-pressed=true]{font-weight:700;text-decoration:underline}
+.tools label{color:var(--accent);font-size:.85rem;cursor:pointer;padding:4px 6px}
+@media(max-width:560px){.rule{grid-template-columns:1fr 1fr}.matrix{grid-template-columns:1fr}}
+.aibox{margin-top:10px;padding:10px;border:1px dashed var(--line);border-radius:8px}
+.aibox summary{font-size:.8rem;font-weight:400;color:var(--sub)}
+#ai-log{white-space:pre-wrap;font-size:.74rem;max-height:200px;overflow:auto;background:var(--bg);padding:8px;border-radius:6px;margin:6px 0 0}
 </style>
 </head>
 <body>
@@ -101,18 +123,32 @@ input[type=color]{width:40px;height:36px;padding:2px;border:1px solid var(--line
 
   <div class="panel">
     <details>
-      <summary>가산점 키워드 (생산성을 빠르게 높이는 일)</summary>
-      <div class="goalrow" style="grid-template-columns:1fr 1fr">
-        <input type="text" id="b-kw" placeholder="쉼표로 구분 (예: 자동화,매크로)" maxlength="80">
-        <label style="display:flex;align-items:center;gap:8px;font-size:.88rem">가산점 <input type="range" id="b-bonus" min="0" max="3" step="0.5"><output id="b-out"></output></label>
-      </div>
-      <p style="color:var(--sub);font-size:.8rem;margin:8px 0 0">제목에 이 단어가 들어간 할일은 중요도에 가산점이 더해집니다. 중요도는 최대 5점입니다.</p>
+      <summary>가산·감점 키워드 규칙 (제목에 단어가 있으면 중요도 조정)</summary>
+      <div id="rules"></div>
+      <div style="display:flex;gap:8px;margin-top:10px"><button class="mini" id="r-add" type="button">규칙 추가</button><button class="mini" id="r-reset" type="button">기본 규칙으로 되돌리기</button></div>
+      <p style="color:var(--sub);font-size:.8rem;margin:8px 0 0">여러 규칙에 걸리면 합산되며 합계는 -2~+2로 제한됩니다. 중요도는 1~5점 안에서 유지됩니다.</p>
     </details>
   </div>
 
   <div class="panel">
     <input type="text" id="title" placeholder="할일을 입력하세요 (예: 세금 신고서 제출)" maxlength="100" autocomplete="off">
     <div class="hint" id="bhint" hidden></div>
+    <div class="aibox">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="mini" id="ai-btn" type="button">AI 제안 (실험)</button>
+        <button class="mini" id="ai-stop" type="button" hidden>중단</button>
+        <select id="ai-model" aria-label="AI 모델" style="width:auto;max-width:100%">
+          <option value="Qwen2.5-1.5B-Instruct-q4f16_1-MLC">Qwen2.5 1.5B (기본)</option>
+          <option value="Qwen2.5-3B-Instruct-q4f16_1-MLC">Qwen2.5 3B (더 정확, 더 큼)</option>
+          <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC">Llama 3.2 1B (약 0.7GB)</option>
+          <option value="Llama-3.2-3B-Instruct-q4f16_1-MLC">Llama 3.2 3B (약 1.3GB)</option>
+          <option value="Qwen3-1.7B-q4f16_1-MLC">Qwen3 1.7B</option>
+        </select>
+        <button class="mini" id="ai-clr" type="button" hidden>비교 보정 지우기</button>
+      </div>
+      <div class="hint" id="ai-status" aria-live="polite"></div>
+      <details><summary>AI 응답 자세히 보기 (프롬프트 점검용)</summary><pre id="ai-log"></pre></details>
+    </div>
 
     <div class="grp">
       <h3>중요도 평가<small>영향력(범위와 지속의 평균)·목표 연관성·금전 가치를 합쳐 계산합니다</small></h3>
@@ -142,7 +178,15 @@ input[type=color]{width:40px;height:36px;padding:2px;border:1px solid var(--line
         <span id="pv"></span>
       </div>
     </div>
-    <button class="add" id="add">할일 추가</button>
+    <div class="grp">
+      <h3>반복·선행·하위 작업</h3>
+      <div class="row">
+        <div class="field"><b>반복</b><select id="rec"><option value="">반복 없음</option><option value="d">매일</option><option value="w">매주</option><option value="m">매월</option></select><span class="rub">완료하면 다음 할일이 자동으로 생깁니다.</span></div>
+        <div class="field"><b>선행 작업</b><select id="pre"></select><span class="rub">먼저 끝내야 하는 일. 끝나기 전에는 대기 상태가 됩니다.</span></div>
+        <div class="field"><b>하위 작업</b><div style="display:flex;gap:6px"><input type="text" id="sub-in" placeholder="세부 단계" maxlength="60"><button class="mini" id="sub-add" type="button">추가</button></div><ul class="sedit" id="subs-edit"></ul></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-end"><button class="add" id="add">할일 추가</button><button class="mini" id="cancel-edit" type="button" hidden>수정 취소</button></div>
   </div>
 
   <div class="panel">
@@ -154,9 +198,10 @@ input[type=color]{width:40px;height:36px;padding:2px;border:1px solid var(--line
 
   <div class="top">
     <h2 id="count">정렬 결과</h2>
-    <div class="tools"><button id="copy">목록 복사</button><button id="clear">완료 항목 지우기</button></div>
+    <div class="tools"><button id="vlist" aria-pressed="true">목록</button><button id="vmat" aria-pressed="false">매트릭스</button><button id="copy">목록 복사</button><button id="clear">완료 지우기</button><button id="exp">내보내기</button><label>불러오기<input type="file" id="imp" accept="application/json,.json" hidden></label></div>
   </div>
   <div class="stat" id="stat" hidden></div>
+  <div id="matrix" class="matrix" hidden></div>
   <ol id="list"></ol>
 </div>
 
@@ -177,6 +222,16 @@ input[type=color]{width:40px;height:36px;padding:2px;border:1px solid var(--line
 <script>
 const KEY = 'todo-priority-v2';
 const DEF_W = { imp: 3, urg: 3, q: 2, a: 3, g: 3, m: 2 };
+const DEF_RULES = [
+  { name: '생산성 레버리지', kws: ['자동화', '매크로', '스크립트', '템플릿', '단축키', '시스템화', '효율화'], bonus: 1.5 },
+  { name: '막힌 일 해소', kws: ['버그', '오류', '장애', '복구', '고장'], bonus: 1 },
+  { name: '위험 예방', kws: ['백업', '보안', '안전', '점검'], bonus: 1 },
+  { name: '법적·금전 의무', kws: ['세금', '납부', '신고', '계약', '과태료', '보험'], bonus: 1 },
+  { name: '남과의 약속', kws: ['제출', '발표', '면접', '시험', '미팅', '납품'], bonus: 1 },
+  { name: '기반 다지기', kws: ['설계', '기초', '세팅', '환경설정', '인프라'], bonus: 0.5 },
+  { name: '학습·성장', kws: ['공부', '학습', '연습', '강의'], bonus: 0.5 },
+  { name: '급하지 않은 잡무', kws: ['청소', '정리정돈', '구경', '서핑', '나중에', '언젠가'], bonus: -1 }
+];
 let state = { tasks: [], goals: [], w: { ...DEF_W } };
 try {
   const s = JSON.parse(localStorage.getItem(KEY));
@@ -187,8 +242,12 @@ try {
   }
 } catch (e) {}
 state.tasks.forEach(t => { if (t.sp === undefined) t.sp = t.tm = t.a || 3; });
-state.boost = state.boost || { kws: ['자동화'], bonus: 1.5 };
-state.buf = state.buf || 1.3;
+function normalize() {
+  state.tasks.forEach(t => { if (t.sp === undefined) t.sp = t.tm = t.a || 3; t.subs = t.subs || []; if (t.pre === undefined) t.pre = null; t.rec = t.rec || ''; });
+  state.rules = state.rules || JSON.parse(JSON.stringify(DEF_RULES));
+  state.buf = state.buf || 1.3; state.view = state.view || 'list';
+}
+normalize();
 let warned = false;
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { if (!warned) { warned = true; alert('저장 공간이 부족합니다. 그림이 있는 할일을 정리해 주세요.'); } } };
 const $ = id => document.getElementById(id);
@@ -236,7 +295,7 @@ const urgOf = t => {
   return d <= 0 ? 5 : d <= 2 ? 4 : d <= 7 ? 3 : d <= 30 ? 2 : 1;
 };
 const moneyScore = v => !v ? null : v < 1e4 ? 1 : v < 1e5 ? 2 : v < 1e6 ? 3 : v < 1e7 ? 4 : 5;
-function impOf(t) { return Math.min(5, baseImp(t) + boostOf(t)); }
+function impOf(t) { return Math.max(1, Math.min(5, baseImp(t) + boostOf(t) + (t.adj || 0))); }
 function baseImp(t) {
   const w = state.w, m = moneyScore(t.money);
   const parts = [[(t.sp + t.tm) / 2, w.a], [t.g, w.g]];
@@ -248,7 +307,13 @@ function score(t) {
   const w = state.w, sum = w.imp + w.urg + w.q || 1;
   return Math.round((impOf(t) * w.imp + urgOf(t) * w.urg + qOf(t) * w.q) / (5 * sum) * 100);
 }
-const order = (a, b) => score(b) - score(a) || urgOf(b) - urgOf(a) || impOf(b) - impOf(a);
+const depsOf = t => state.tasks.filter(x => !x.done && x.pre === t.id);
+const isBlocked = t => { if (!t.pre) return false; const p = state.tasks.find(x => x.id === t.pre); return !!p && !p.done; };
+function effScore(t, seen = []) {
+  if (seen.includes(t.id)) return score(t);
+  return Math.max(score(t), ...depsOf(t).map(d => Math.round(0.9 * effScore(d, [...seen, t.id]))));
+}
+const order = (a, b) => effScore(b) - effScore(a) || urgOf(b) - urgOf(a) || impOf(b) - impOf(a);
 
 function refreshGoals() {
   const s = $('goal');
@@ -272,12 +337,10 @@ $('g-add').onclick = () => {
 
 function suggest() {
   const t = $('title').value;
-  const bk = state.boost.kws.find(k => k && t.includes(k));
-  $('bhint').hidden = !bk;
-  if (bk) $('bhint').textContent = '"' + bk + '" 키워드 → 중요도 +' + state.boost.bonus + ' 가산';
+  const mr = matchRules(t), bs = Math.max(-2, Math.min(2, mr.reduce((a, r) => a + r.bonus, 0)));
+  $('bhint').hidden = !mr.length;
+  if (mr.length) $('bhint').textContent = mr.map(r => r.name).join('·') + ' 키워드 → 중요도 ' + sgn(bs) + ' 반영';
   if (!t) return;
-  const v = HI_KW.some(k => t.includes(k)) ? 4 : LO_KW.some(k => t.includes(k)) ? 2 : 3;
-  ['sp', 'tm'].forEach(k => { if (!touched[k]) setSeg(k, v); });
   const gi = state.goals.findIndex(g => g.kw.some(k => t.includes(k)));
   if (gi >= 0 && !touched.goal) { $('goal').value = gi; if (!touched.g) setSeg('g', 4); }
 }
@@ -293,55 +356,168 @@ $('money').oninput = () => {
   $('rub-m').textContent = m ? '금전 가치 ' + m + '점 (1만·10만·100만·1000만 원 기준)' : '비우면 이 기준은 계산에서 빠집니다.';
 };
 
+let editId = null, curSubs = [], curAdj = 0;
+function sgn(n) { return (n > 0 ? '+' : '') + n; }
+function collect() {
+  return { sp: sel.sp, tm: sel.tm, g: sel.g, money: +$('money').value || null, dl: $('dl').value, u: sel.u, q: sel.q,
+    est: (+$('est').value || 0) * +$('est-u').value || null, img: curImg, adj: curAdj, rec: $('rec').value,
+    pre: $('pre').value ? +$('pre').value : null, subs: curSubs.map(x => ({ ...x })) };
+}
+function hasCycle(id, pre) {
+  let cur = pre, n = 0;
+  while (cur && n++ < 100) { if (cur === id) return true; const x = state.tasks.find(t => t.id === cur); cur = x ? x.pre : null; }
+  return false;
+}
+function renderSubsEdit() {
+  const ul = $('subs-edit'); ul.innerHTML = '';
+  curSubs.forEach((sx, i) => {
+    const li = document.createElement('li'), sp = document.createElement('span'), x = document.createElement('button');
+    sp.textContent = sx.t; x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', '삭제');
+    x.onclick = () => { curSubs.splice(i, 1); renderSubsEdit(); };
+    li.append(sp, x); ul.appendChild(li);
+  });
+}
+function addSub() { const v = $('sub-in').value.trim(); if (!v) return; curSubs.push({ t: v, d: false }); $('sub-in').value = ''; renderSubsEdit(); }
+function refreshPre() {
+  const sl = $('pre'), keep = sl.value;
+  sl.innerHTML = '<option value="">선행 작업 없음</option>';
+  state.tasks.filter(t => !t.done && t.id !== editId).forEach(t => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.title; sl.appendChild(o); });
+  sl.value = keep; if (sl.selectedIndex < 0) sl.value = '';
+}
+function resetForm() {
+  editId = null;
+  ['title', 'money', 'dl', 'est', 'rec', 'goal', 'sub-in'].forEach(id => { $(id).value = ''; });
+  curSubs = []; renderSubsEdit(); setImg(null); $('bhint').hidden = true; curAdj = 0; $('ai-clr').hidden = true; setAi(AI_IDLE);
+  Object.keys(touched).forEach(k => delete touched[k]);
+  ['sp', 'tm', 'g', 'u', 'q'].forEach(k => setSeg(k, 3));
+  $('dl').onchange(); $('money').oninput(); $('est').oninput(); refreshPre(); $('pre').value = '';
+  $('add').textContent = '할일 추가'; $('cancel-edit').hidden = true;
+}
+function startEdit(t) {
+  editId = t.id;
+  $('title').value = t.title;
+  const m = { sp: t.sp, tm: t.tm, g: t.g, u: t.u, q: t.q };
+  Object.keys(m).forEach(k => { touched[k] = true; setSeg(k, m[k]); });
+  $('money').value = t.money || ''; $('dl').value = t.dl || '';
+  if (t.est) { const u = t.est % 60 === 0 ? 60 : 1; $('est-u').value = String(u); $('est').value = t.est / u; } else $('est').value = '';
+  $('dl').onchange(); $('money').oninput(); $('est').oninput();
+  $('rec').value = t.rec || ''; refreshPre(); $('pre').value = t.pre ? String(t.pre) : '';
+  curSubs = t.subs.map(x => ({ ...x })); renderSubsEdit(); setImg(t.img || null); curAdj = t.adj || 0; $('ai-clr').hidden = !curAdj;
+  $('add').textContent = '수정 저장'; $('cancel-edit').hidden = false;
+  window.scrollTo({ top: 0, behavior: 'smooth' }); $('title').focus();
+}
 function addTask() {
   const title = $('title').value.trim();
   if (!title) { $('title').focus(); return; }
-  state.tasks.push({ id: Date.now() + Math.random(), title, sp: sel.sp, tm: sel.tm, g: sel.g, money: +$('money').value || null, dl: $('dl').value, u: sel.u, q: sel.q, est: (+$('est').value || 0) * +$('est-u').value || null, img: curImg, actual: 0, run: null, done: false });
-  $('title').value = ''; $('money').value = ''; $('dl').value = ''; $('goal').value = ''; $('est').value = ''; setImg(null); $('bhint').hidden = true;
-  Object.keys(touched).forEach(k => delete touched[k]);
-  ['sp', 'tm', 'g', 'u', 'q'].forEach(k => setSeg(k, 3));
-  $('dl').onchange(); $('money').oninput(); $('est').oninput();
-  $('title').focus(); save(); render();
+  const f = collect();
+  if (f.pre && editId && hasCycle(editId, f.pre)) { alert('선행 작업이 서로 순환합니다. 다른 작업을 골라 주세요.'); return; }
+  if (editId) { const t = state.tasks.find(x => x.id === editId); if (t) Object.assign(t, f, { title }); }
+  else state.tasks.push({ id: Date.now() + Math.random(), title, ...f, actual: 0, run: null, done: false });
+  resetForm(); $('title').focus(); save(); render();
+}
+function addPeriod(ds, rec) {
+  const [y, mo, d] = ds.split('-').map(Number), dt = new Date(y, mo - 1, d);
+  if (rec === 'd') dt.setDate(dt.getDate() + 1); else if (rec === 'w') dt.setDate(dt.getDate() + 7); else dt.setMonth(dt.getMonth() + 1);
+  return dt.getFullYear() + '-' + ('0' + (dt.getMonth() + 1)).slice(-2) + '-' + ('0' + dt.getDate()).slice(-2);
+}
+function spawnNext(t) {
+  if (t.spawned) return; t.spawned = true;
+  let nd = t.dl || '';
+  if (nd) { nd = addPeriod(nd, t.rec); let n = 0; while (daysLeft(nd) < 0 && n++ < 400) nd = addPeriod(nd, t.rec); }
+  state.tasks.push({ ...t, id: Date.now() + Math.random(), dl: nd, subs: t.subs.map(x => ({ t: x.t, d: false })), actual: 0, run: null, done: false, spawned: false, pre: null });
+}
+
+function taskItem(t, active) {
+  const li = document.createElement('li');
+  const idx = active.indexOf(t), blk = isBlocked(t);
+  li.className = 'task' + (t.done ? ' done' : '') + (blk ? ' blocked' : '') + (idx === 0 ? ' first' : '');
+  const d = daysLeft(t.dl), m = moneyScore(t.money), own = score(t), eff = effScore(t), rm = boostOf(t);
+  const dtxt = d === null ? '' : d === 0 ? ' (D-day)' : d > 0 ? ' (D-' + d + ')' : ' (' + (-d) + '일 지남)';
+  li.innerHTML = '<div class="rank">' + (t.done ? '✓' : blk ? '⏳' : idx + 1) + '</div><div><div class="name"></div><div class="chips">' +
+    '<span class="score">' + eff + '점</span>' + (eff > own ? '<span>후행 작업 때문에 ' + own + '→' + eff + '점</span>' : '') +
+    '<span>중요도 ' + impOf(t).toFixed(1) + ' = 영향 ' + ((t.sp + t.tm) / 2).toFixed(1) + '(범위 ' + t.sp + '·지속 ' + t.tm + ') · 목표 ' + t.g + (m ? ' · 금전 ' + m : '') + (rm ? ' · 키워드 ' + sgn(rm) : '') + (t.adj ? ' · 비교 보정 ' + sgn(t.adj) : '') + '</span>' +
+    '<span>긴급 ' + urgOf(t) + dtxt + '</span><span>속도 ' + qOf(t) + '</span>' + (t.rec ? '<span>반복: ' + { d: '매일', w: '매주', m: '매월' }[t.rec] + '</span>' : '') +
+    '</div><div class="chips tinfo"></div><div class="blk"></div><div class="subs"></div><div class="extra"></div></div>' +
+    '<div class="act">' + (t.done ? '<button data-a="actual">실제시간</button>' : '<button data-a="timer">' + (t.run ? '정지' : '시작') + '</button>') +
+    '<button data-a="edit">수정</button><button data-a="done">' + (t.done ? '되돌리기' : '완료') + '</button><button data-a="del">삭제</button></div>';
+  li.querySelector('.name').textContent = t.title;
+  const ti = li.querySelector('.tinfo'); ti.innerHTML = timeHtml(t); if (!ti.innerHTML) ti.remove();
+  const bk = li.querySelector('.blk');
+  if (blk) bk.textContent = '선행 작업 "' + state.tasks.find(x => x.id === t.pre).title + '"을(를) 끝내면 시작할 수 있어요.'; else bk.remove();
+  const sb = li.querySelector('.subs');
+  if (t.subs.length) {
+    li.querySelector('.chips').insertAdjacentHTML('beforeend', '<span>하위 작업 ' + t.subs.filter(x => x.d).length + '/' + t.subs.length + '</span>');
+    t.subs.forEach(sx => {
+      const lb = document.createElement('label'), cb = document.createElement('input'), sp = document.createElement('span');
+      cb.type = 'checkbox'; cb.checked = sx.d; cb.onchange = () => { sx.d = cb.checked; save(); render(); };
+      sp.textContent = sx.t; lb.append(cb, sp); sb.appendChild(lb);
+    });
+  } else sb.remove();
+  const ex = li.querySelector('.extra');
+  if (t.img) { const im = document.createElement('img'); im.src = t.img; im.className = 'thumb'; im.alt = '참고 그림'; im.onclick = () => showViewer(t.img); ex.appendChild(im); } else ex.remove();
+  const tb = li.querySelector('[data-a=timer]');
+  if (tb) tb.onclick = () => { if (t.run) { t.actual = elapsed(t); t.run = null; } else t.run = Date.now(); save(); render(); };
+  const ab = li.querySelector('[data-a=actual]');
+  if (ab) ab.onclick = () => { const v = parseFloat(prompt('실제로 걸린 시간을 분 단위로 입력하세요', t.actual ? Math.round(t.actual / 60) : '')); if (v >= 0) { t.actual = v * 60; save(); render(); } };
+  li.querySelector('[data-a=edit]').onclick = () => startEdit(t);
+  li.querySelector('[data-a=done]').onclick = () => {
+    if (!t.done && t.run) { t.actual = elapsed(t); t.run = null; }
+    if (!t.done && t.rec) spawnNext(t);
+    t.done = !t.done; save(); render();
+  };
+  li.querySelector('[data-a=del]').onclick = () => {
+    state.tasks = state.tasks.filter(x => x !== t); state.tasks.forEach(x => { if (x.pre === t.id) x.pre = null; });
+    if (editId === t.id) resetForm();
+    save(); render();
+  };
+  return li;
+}
+
+function renderMatrix(active) {
+  const box = $('matrix'); box.innerHTML = '';
+  const Q = [
+    { t: '지금 하기', s: '중요 · 긴급', f: x => impOf(x) >= 3.5 && urgOf(x) >= 4 },
+    { t: '계획하기', s: '중요 · 덜 급함', f: x => impOf(x) >= 3.5 && urgOf(x) < 4 },
+    { t: '빨리 처리하기', s: '덜 중요 · 긴급', f: x => impOf(x) < 3.5 && urgOf(x) >= 4 },
+    { t: '나중에·버리기', s: '덜 중요 · 덜 급함', f: x => impOf(x) < 3.5 && urgOf(x) < 4 }
+  ];
+  Q.forEach(q => {
+    const c = document.createElement('div'), h = document.createElement('h3'), sm = document.createElement('small');
+    c.className = 'quad'; h.textContent = q.t; sm.textContent = q.s; h.appendChild(sm); c.appendChild(h);
+    const items = active.filter(q.f);
+    if (!items.length) { const e = document.createElement('p'); e.className = 'none'; e.textContent = '없음'; c.appendChild(e); }
+    items.forEach(x => { const p = document.createElement('div'); p.className = 'qi'; p.textContent = (active.indexOf(x) + 1) + '. ' + x.title + ' (' + effScore(x) + '점)'; c.appendChild(p); });
+    box.appendChild(c);
+  });
+  const n = document.createElement('p'); n.className = 'note';
+  n.textContent = '기준: 중요도 3.5점 이상이 "중요", 긴급도 4점 이상(마감 2일 이내)이 "긴급"입니다. 완료·대기 중인 일은 제외됩니다.';
+  box.appendChild(n);
 }
 
 function render() {
+  renderStat(); refreshPre();
   const list = $('list'); list.innerHTML = '';
-  const active = state.tasks.filter(t => !t.done).sort(order);
+  const open = state.tasks.filter(t => !t.done);
+  const active = open.filter(t => !isBlocked(t)).sort(order);
+  const blocked = open.filter(isBlocked).sort(order);
   const done = state.tasks.filter(t => t.done);
-  renderStat();
   $('count').textContent = active.length ? '지금 할 순서 (' + active.length + '개)' : '정렬 결과';
+  const mat = state.view === 'matrix';
+  $('vlist').setAttribute('aria-pressed', String(!mat)); $('vmat').setAttribute('aria-pressed', String(mat));
+  $('matrix').hidden = !mat; list.hidden = mat;
+  if (mat) renderMatrix(active);
   if (!state.tasks.length) { list.innerHTML = '<div class="empty">아직 할일이 없어요. 위에 첫 할일을 추가해 보세요.</div>'; return; }
-  [...active, ...done].forEach(t => {
-    const li = document.createElement('li');
-    const idx = active.indexOf(t);
-    li.className = 'task' + (t.done ? ' done' : '') + (idx === 0 ? ' first' : '');
-    const d = daysLeft(t.dl), m = moneyScore(t.money);
-    const dtxt = d === null ? '' : d === 0 ? ' (D-day)' : d > 0 ? ' (D-' + d + ')' : ' (' + (-d) + '일 지남)';
-    li.innerHTML = '<div class="rank">' + (t.done ? '✓' : idx + 1) + '</div><div><div class="name"></div><div class="chips">' +
-      '<span class="score">' + score(t) + '점</span><span>중요도 ' + impOf(t).toFixed(1) + ' = 영향 ' + ((t.sp + t.tm) / 2).toFixed(1) + '(범위 ' + t.sp + '·지속 ' + t.tm + ') · 목표 ' + t.g + (m ? ' · 금전 ' + m : '') + (boostOf(t) ? ' · 키워드 가산 +' + boostOf(t) : '') + '</span>' +
-      '<span>긴급 ' + urgOf(t) + dtxt + '</span><span>속도 ' + qOf(t) + '</span></div><div class="chips tinfo"></div><div class="extra"></div></div>' +
-      '<div class="act">' + (t.done ? '<button data-a="actual">실제시간</button>' : '<button data-a="timer">' + (t.run ? '정지' : '시작') + '</button>') + '<button data-a="done">' + (t.done ? '되돌리기' : '완료') + '</button><button data-a="del">삭제</button></div>';
-    li.querySelector('.name').textContent = t.title;
-    const ti = li.querySelector('.tinfo'); ti.innerHTML = timeHtml(t); if (!ti.innerHTML) ti.remove();
-    const ex = li.querySelector('.extra');
-    if (t.img) { const im = document.createElement('img'); im.src = t.img; im.className = 'thumb'; im.alt = '참고 그림'; im.onclick = () => showViewer(t.img); ex.appendChild(im); } else ex.remove();
-    const tb = li.querySelector('[data-a=timer]');
-    if (tb) tb.onclick = () => { if (t.run) { t.actual = elapsed(t); t.run = null; } else t.run = Date.now(); save(); render(); };
-    const ab = li.querySelector('[data-a=actual]');
-    if (ab) ab.onclick = () => { const v = parseFloat(prompt('실제로 걸린 시간을 분 단위로 입력하세요', t.actual ? Math.round(t.actual / 60) : '')); if (v >= 0) { t.actual = v * 60; save(); render(); } };
-    li.querySelector('[data-a=done]').onclick = () => { if (!t.done && t.run) { t.actual = elapsed(t); t.run = null; } t.done = !t.done; save(); render(); };
-    li.querySelector('[data-a=del]').onclick = () => { state.tasks = state.tasks.filter(x => x !== t); save(); render(); };
-    list.appendChild(li);
-  });
+  [...active, ...blocked, ...done].forEach(t => list.appendChild(taskItem(t, active)));
 }
 
+const wsl = {};
 const WL = [['h', '전체 비율'], ['imp', '중요도'], ['urg', '긴급도'], ['q', '빠른 처리'], ['h', '중요도 안의 비율'], ['a', '영향력'], ['g', '목표 연관성'], ['m', '금전 가치']];
 WL.forEach(([k, label]) => {
   if (k === 'h') { const h = document.createElement('h4'); h.textContent = label; $('wts').appendChild(h); return; }
   const l = document.createElement('label');
   l.innerHTML = label + '<input type="range" min="0" max="5"><output></output>';
   const r = l.querySelector('input'), o = l.querySelector('output');
-  r.value = state.w[k]; o.textContent = r.value;
+  wsl[k] = [r, o]; r.value = state.w[k]; o.textContent = r.value;
   r.oninput = () => { state.w[k] = +r.value; o.textContent = r.value; save(); render(); };
   $('wts').appendChild(l);
 });
@@ -350,7 +526,7 @@ $('add').onclick = addTask;
 $('title').addEventListener('keydown', e => { if (e.key === 'Enter') addTask(); });
 $('clear').onclick = () => { state.tasks = state.tasks.filter(t => !t.done); save(); render(); };
 $('copy').onclick = () => {
-  const txt = state.tasks.filter(t => !t.done).sort(order).map((t, i) => (i + 1) + '. ' + t.title + ' (' + score(t) + '점)').join('\n');
+  const txt = state.tasks.filter(t => !t.done && !isBlocked(t)).sort(order).map((t, i) => (i + 1) + '. ' + t.title + ' (' + effScore(t) + '점)').join('\n');
   if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => { $('copy').textContent = '복사됨'; setTimeout(() => $('copy').textContent = '목록 복사', 1200); });
 };
 
@@ -360,7 +536,9 @@ function fmtS(s) { return Math.floor(s / 60) + '분 ' + ('0' + Math.floor(s % 60
 function elapsed(t) { return (t.actual || 0) + (t.run ? (Date.now() - t.run) / 1000 : 0); }
 function qFromMin(m) { return m <= 10 ? 5 : m <= 45 ? 4 : m <= 180 ? 3 : m <= 480 ? 2 : 1; }
 function qOf(t) { return t.est ? qFromMin(t.est * state.buf) : t.q; }
-function boostOf(t) { return state.boost.kws.some(k => k && t.title.includes(k)) ? state.boost.bonus : 0; }
+function matchRules(title) { return state.rules.filter(r => r.kws.some(k => k && title.includes(k))); }
+function boostOf(t) { return Math.max(-2, Math.min(2, matchRules(t.title).reduce((a, r) => a + r.bonus, 0))); }
+function sgn(n) { return (n > 0 ? '+' : '') + n; }
 function timeHtml(t) {
   let h = '';
   if (t.est) h += '<span>예상 ' + fmt(t.est) + ' × ' + state.buf.toFixed(1) + ' = ' + fmt(t.est * state.buf) + '</span>';
@@ -383,11 +561,58 @@ function renderStat() {
   el.appendChild(b);
 }
 
-/* 가산점 키워드 */
-$('b-kw').value = state.boost.kws.join(',');
-$('b-bonus').value = state.boost.bonus; $('b-out').textContent = '+' + state.boost.bonus;
-$('b-kw').oninput = () => { state.boost.kws = $('b-kw').value.split(',').map(x => x.trim()).filter(Boolean); save(); render(); suggest(); };
-$('b-bonus').oninput = () => { state.boost.bonus = +$('b-bonus').value; $('b-out').textContent = '+' + state.boost.bonus; save(); render(); suggest(); };
+/* 가산·감점 키워드 규칙 */
+function renderRules() {
+  const box = $('rules'); box.innerHTML = '';
+  state.rules.forEach((r, i) => {
+    const row = document.createElement('div'); row.className = 'rule';
+    const nm = document.createElement('input'), kw = document.createElement('input'), bn = document.createElement('input'), del = document.createElement('button');
+    nm.type = 'text'; nm.value = r.name; nm.maxLength = 20; nm.setAttribute('aria-label', '규칙 이름');
+    kw.type = 'text'; kw.value = r.kws.join(','); kw.setAttribute('aria-label', '키워드(쉼표로 구분)');
+    bn.type = 'number'; bn.min = -3; bn.max = 3; bn.step = 0.5; bn.value = r.bonus; bn.setAttribute('aria-label', '가산점');
+    del.className = 'mini'; del.type = 'button'; del.textContent = '삭제';
+    nm.oninput = () => { r.name = nm.value; save(); };
+    kw.oninput = () => { r.kws = kw.value.split(',').map(x => x.trim()).filter(Boolean); save(); render(); suggest(); };
+    bn.oninput = () => { r.bonus = +bn.value || 0; save(); render(); suggest(); };
+    del.onclick = () => { state.rules.splice(i, 1); save(); renderRules(); render(); suggest(); };
+    row.append(nm, kw, bn, del); box.appendChild(row);
+  });
+}
+$('r-add').onclick = () => { state.rules.push({ name: '새 규칙', kws: [], bonus: 1 }); save(); renderRules(); };
+$('r-reset').onclick = () => { if (confirm('기본 규칙으로 되돌릴까요? 직접 만든 규칙은 사라집니다.')) { state.rules = JSON.parse(JSON.stringify(DEF_RULES)); save(); renderRules(); render(); suggest(); } };
+
+/* 하위 작업 입력, 수정 취소, 화면 전환 */
+$('sub-add').onclick = addSub;
+$('sub-in').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addSub(); } });
+$('cancel-edit').onclick = resetForm;
+$('vlist').onclick = () => { state.view = 'list'; save(); render(); };
+$('vmat').onclick = () => { state.view = 'matrix'; save(); render(); };
+
+/* 내보내기·불러오기 */
+function syncAll() {
+  Object.keys(wsl).forEach(k => { wsl[k][0].value = state.w[k]; wsl[k][1].textContent = state.w[k]; });
+  syncBuf(); renderRules(); refreshGoals();
+}
+$('exp').onclick = () => {
+  const a = document.createElement('a'), n = new Date();
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(state)], { type: 'application/json' }));
+  a.download = 'todo-backup-' + n.getFullYear() + ('0' + (n.getMonth() + 1)).slice(-2) + ('0' + n.getDate()).slice(-2) + '.json';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('imp').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const o = JSON.parse(rd.result);
+      if (!o || !Array.isArray(o.tasks)) throw new Error('형식 오류');
+      if (!confirm('현재 목록을 이 파일의 내용으로 바꿀까요? (할일 ' + o.tasks.length + '개)')) return;
+      state = { tasks: o.tasks, goals: o.goals || [], w: { ...DEF_W, ...o.w }, rules: o.rules, buf: o.buf, view: o.view };
+      normalize(); resetForm(); save(); syncAll(); render();
+    } catch (err) { alert('불러올 수 없는 파일입니다.'); }
+  };
+  rd.readAsText(f); e.target.value = '';
+};
 
 /* 여유율 슬라이더 */
 const bh = document.createElement('h4'); bh.textContent = '소요시간 예측'; $('wts').appendChild(bh);
@@ -469,7 +694,147 @@ setInterval(() => {
   });
 }, 1000);
 
-buildSegs(); refreshGoals(); render();
+/* AI 제안 (WebLLM, 브라우저 안에서 실행) */
+const AI_IDLE = '첫 실행 때 AI 모델을 내려받습니다(수백 MB~수 GB). 데스크톱 Chrome·Edge 권장. 할일 내용은 기기 밖으로 나가지 않습니다.';
+const AIL = { sp: '영향 범위', tm: '영향 지속', g: '목표 연관성', t: '소요시간' };
+const AI_SYS = '당신은 할일을 평가하는 도우미입니다. 질문을 읽고 보기 중 하나를 고르세요. 설명 없이 숫자나 단어 하나만 답하세요.';
+let engine = null, wllm = null, aiBusy = false, aiStop = false;
+const AIQ = {
+  sp: { q: '이 할일을 끝내면, 그 결과로 이익이나 영향을 받는 사람은 누구입니까?',
+    o: ['나 혼자', '가족이나 가까운 사람 몇 명', '팀이나 동네 사람들', '회사나 지역 전체', '사회 전체나 전 세계'],
+    ex: [['내 책상 닦기', 1], ['가족 여행 예약하기', 2], ['팀 공용 문서 정리하기', 3], ['회사 전체 보안 점검하기', 4]] },
+  tm: { q: '이 할일의 효과는 얼마나 오래 갑니까?',
+    o: ['오늘 하루', '일주일 정도', '몇 달', '몇 년', '평생 또는 되돌릴 수 없음'],
+    ex: [['점심 메뉴 정하기', 1], ['이번 주 회의 자료 만들기', 2], ['블로그 디자인 바꾸기', 3], ['반복 업무 자동화하기', 4]] },
+  g: { q: '이 할일은 내 목표와 얼마나 관련이 있습니까?',
+    o: ['관련 없음', '간접적으로 관련', '도움이 됨', '목표 달성에 직접 기여', '목표 달성에 꼭 필요한 핵심 단계'],
+    ex: [['빨래하기', 1], ['다른 사람의 블로그 구경하기', 2], ['블로그 글 한 편 쓰기', 4], ['블로그에 광고 달기', 5]], goalEx: '블로그로 수익 내기' },
+  t: { q: '이 할일을 끝내는 데 보통 얼마나 걸립니까?',
+    o: ['5분 안쪽', '30분 정도', '2시간 정도', '반나절(4시간)', '하루 이상'],
+    ex: [['메일 한 통 보내기', 1], ['영수증 정리하기', 2], ['발표 자료 10장 만들기', 3], ['앱 하나 새로 만들기', 5]] }
+};
+const AI_MIN = [5, 30, 120, 240, 480];
+const goalsText = () => state.goals.map(g => g.name).join(', ');
+function setAi(msg) { $('ai-status').textContent = msg; }
+function aiLog(label, out) { $('ai-log').textContent += '[' + label + '] ' + out.replace(/\s+/g, ' ').slice(0, 120) + '\n'; }
+
+function aiPrompt(k, title) {
+  const Q = AIQ[k];
+  let p = Q.q + '\n';
+  Q.o.forEach((x, i) => { p += (i + 1) + ') ' + x + '\n'; });
+  p += '\n예시:\n';
+  if (k === 'g') p += '(내 목표: ' + Q.goalEx + ')\n';
+  Q.ex.forEach(e => { p += '할일: ' + e[0] + ' → 답: ' + e[1] + '\n'; });
+  p += '\n이제 진짜 문제입니다.\n';
+  if (k === 'g') p += '내 목표: ' + goalsText() + '\n';
+  return p + '할일: ' + title + ' → 답:';
+}
+function cmpPrompt(a, b) {
+  const gt = state.goals.length ? '내 목표: ' + goalsText() + '\n' : '';
+  return '두 할일 중에서, 내 목표 달성이나 생산성 향상에 더 큰 도움이 되는 일을 고르세요.\n' + gt +
+    '\n예시:\n1) 책상 닦기\n2) 반복 업무 자동화하기\n→ 답: 2\n\n1) 계약서 제출하기\n2) 서점 구경하기\n→ 답: 1\n\n이제 진짜 문제입니다.\n1) ' + a + '\n2) ' + b + '\n→ 답:';
+}
+function preqPrompt(a, b) {
+  return 'A를 하려면 B가 먼저 끝나 있어야 합니까? 예 또는 아니오로만 답하세요.\n\n예시:\nA: 블로그에 글 올리기 / B: 블로그 글 쓰기 → 예\nA: 설거지하기 / B: 메일 보내기 → 아니오\nA: 앱 배포하기 / B: 앱 테스트하기 → 예\n\n이제 진짜 문제입니다.\nA: ' + a + ' / B: ' + b + ' →';
+}
+const parseDigit = x => { const m = x.match(/[1-5]/); return m ? +m[0] : null; };
+const parse12 = x => { const m = x.match(/[12]/); return m ? +m[0] : null; };
+const parseYes = x => /^\s*(예|네|yes)/i.test(x) ? true : /^\s*(아니|no)/i.test(x) ? false : null;
+
+async function loadEngine() {
+  if (engine) return engine;
+  if (!navigator.gpu) throw new Error('이 브라우저는 WebGPU를 지원하지 않습니다. 데스크톱 Chrome 또는 Edge를 사용해 주세요. (키워드 규칙은 계속 쓸 수 있어요)');
+  if (!confirm('AI 모델을 이 브라우저에 내려받습니다(수백 MB~수 GB, 한 번만). 계속할까요?')) throw new Error('모델 내려받기를 취소했습니다.');
+  setAi('AI 라이브러리를 불러오는 중…');
+  wllm = await import('https://esm.run/@mlc-ai/web-llm@0.2.83');
+  const id = $('ai-model').value;
+  const list = (wllm.prebuiltAppConfig && wllm.prebuiltAppConfig.model_list) || [];
+  if (list.length && !list.some(m => m.model_id === id)) throw new Error('이 모델 ID를 찾을 수 없습니다. 다른 모델을 골라 주세요: ' + id);
+  engine = await wllm.CreateMLCEngine(id, { initProgressCallback: pr => setAi(Math.round((pr.progress || 0) * 100) + '% · ' + (pr.text || '')) });
+  return engine;
+}
+async function ask(prompt, maxTok, label) {
+  const q3 = $('ai-model').value.indexOf('Qwen3') === 0;
+  const r = await engine.chat.completions.create({
+    messages: [{ role: 'system', content: AI_SYS }, { role: 'user', content: prompt + (q3 ? ' /no_think' : '') }],
+    temperature: 0, max_tokens: maxTok + (q3 ? 24 : 0)
+  });
+  const out = String((r.choices[0].message && r.choices[0].message.content) || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+  aiLog(label, out); return out;
+}
+async function cmpTasks(a, b) {
+  const r1 = parse12(await ask(cmpPrompt(a, b), 4, '비교 ' + a + ' vs ' + b));
+  const r2 = parse12(await ask(cmpPrompt(b, a), 4, '비교(순서 바꿈)'));
+  if (r1 === null && r2 === null) return null;
+  const v = (r1 === 1 ? 1 : r1 === 2 ? -1 : 0) + (r2 === 2 ? 1 : r2 === 1 ? -1 : 0);
+  return v > 0 ? 1 : v < 0 ? -1 : 0;
+}
+
+async function runAI() {
+  const title = $('title').value.trim();
+  if (!title) { $('title').focus(); setAi('먼저 할일 제목을 입력해 주세요.'); return; }
+  if (aiBusy) return;
+  aiBusy = true; aiStop = false; $('ai-btn').disabled = true; $('ai-stop').hidden = false; $('ai-log').textContent = '';
+  try {
+    await loadEngine();
+    const got = [];
+    for (const k of ['sp', 'tm', 'g', 't']) {
+      if (aiStop) break;
+      if (k === 'g' && !state.goals.length) continue;
+      if (k === 't' && $('est').value) continue;
+      setAi('판단 중: ' + AIL[k] + '…');
+      const v = parseDigit(await ask(aiPrompt(k, title), 8, AIL[k]));
+      if (v === null) { got.push(AIL[k] + ' 실패'); continue; }
+      if (k === 't') { $('est-u').value = '1'; $('est').value = AI_MIN[v - 1]; $('est').oninput(); got.push('예상 ' + fmt(AI_MIN[v - 1])); }
+      else { touched[k] = true; setSeg(k, v); got.push(AIL[k] + ' ' + v); }
+    }
+    const others = state.tasks.filter(t => !t.done && t.id !== editId);
+    let preName = '', adjTxt = '';
+    if (others.length && !aiStop) {
+      setAi('선후 관계 확인 중…');
+      const cands = [...others].sort((a, b) => effScore(b) - effScore(a)).slice(0, 6);
+      for (const b of cands) {
+        if (aiStop) break;
+        if (editId && hasCycle(editId, b.id)) continue;
+        if (parseYes(await ask(preqPrompt(title, b.title), 4, '선행? ' + b.title)) !== true) continue;
+        if (parseYes(await ask(preqPrompt(b.title, title), 4, '선행(반대)')) === true) continue;
+        refreshPre(); $('pre').value = String(b.id); preName = b.title; break;
+      }
+    }
+    if (others.length && !aiStop) {
+      const sorted = [...others].sort((a, b) => impOf(a) - impOf(b));
+      let lo = 0, hi = sorted.length, tie = null, n = 0, bad = false;
+      while (lo < hi && !aiStop) {
+        const mid = (lo + hi) >> 1;
+        setAi('다른 할일과 비교 중 (' + (++n) + '번째)…');
+        const c = await cmpTasks(title, sorted[mid].title);
+        if (c === null) { bad = true; break; }
+        if (c > 0) lo = mid + 1; else if (c < 0) hi = mid; else { tie = sorted[mid]; break; }
+      }
+      if (bad) adjTxt = ' · 비교 답을 읽지 못해 보정은 하지 않았어요';
+      if (!aiStop && !bad) {
+        const below = sorted[lo - 1], above = sorted[lo];
+        const T = tie ? impOf(tie) : below && above ? (impOf(below) + impOf(above)) / 2 : below ? Math.min(5, impOf(below) + 0.3) : above ? Math.max(1, impOf(above) - 0.3) : null;
+        const tmp = { ...collect(), title, adj: 0 };
+        const mine = Math.max(1, Math.min(5, baseImp(tmp) + boostOf(tmp)));
+        if (T !== null) { curAdj = Math.max(-1, Math.min(1, Math.round((T - mine) * 5) / 10)); adjTxt = curAdj ? ' · 비교 보정 ' + sgn(curAdj) : ' · 비교 결과 점수와 일치'; }
+        $('ai-clr').hidden = !curAdj;
+      }
+    }
+    setAi((aiStop ? '중단됨 — ' : '완료 — ') + got.join(' · ') + (got.length && got.every(x => x.indexOf('실패') > 0) ? ' (AI 답을 읽지 못했어요. 다른 모델을 골라 보세요)' : '') + (preName ? ' · 선행 후보 "' + preName + '"' : '') + adjTxt + '. 값을 확인하고 필요하면 고친 뒤 추가하세요.');
+  } catch (e) {
+    setAi('AI 오류: ' + (e && e.message || e));
+  } finally {
+    aiBusy = false; $('ai-btn').disabled = false; $('ai-stop').hidden = true;
+  }
+}
+$('ai-btn').onclick = runAI;
+$('ai-stop').onclick = () => { aiStop = true; };
+$('ai-clr').onclick = () => { curAdj = 0; $('ai-clr').hidden = true; setAi('비교 보정을 지웠습니다.'); };
+$('ai-model').onchange = () => { if (engine && engine.unload) engine.unload(); engine = null; };
+setAi(AI_IDLE);
+
+buildSegs(); refreshGoals(); renderRules(); render();
 </script>
 </body>
 </html>
